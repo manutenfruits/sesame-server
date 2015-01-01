@@ -41,14 +41,14 @@
           <div class="os-aside-item-title">
             Host
           </div>
-          <input class="os-aside-input" type="url" placeholder="IP address"/>
+          <input class="os-aside-input" id="door-host" type="url" placeholder="IP address"/>
         </label>
 
         <label class="os-aside-item">
           <div class="os-aside-item-title">
             Password
           </div>
-          <input class="os-aside-input" type="password" placeholder="Required for authentication"/>
+          <input class="os-aside-input" id="door-passwd" type="password" placeholder="Required for authentication"/>
         </label>
 
         <button class="os-aside-submit" type="submit">
@@ -67,16 +67,41 @@
     <section class="os-main">
 
       <div class="os-button-wrapper">
-        <button type="button" class="os-button">
-          Ext
-        </button>
+        <div class="os-button-cell">
+          <button type="button" class="door-button os-button" data-door="0" disabled>
+            <div class="os-button-label">
+              Exterior
+            </div>
+            <div class="os-button-label os-button-success">
+              OK
+            </div>
+            <div class="os-button-label os-button-error">
+              Error
+            </div>
+            <div class="os-button-label os-button-waiting">
+              ···
+            </div>
+          </button>
+        </div>
       </div>
 
       <div class="os-button-wrapper">
-        <button type="button" class="os-button">
-          Int
-        </button>
-
+        <div class="os-button-cell">
+          <button type="button" class="door-button os-button" data-door="1" disabled>
+            <div class="os-button-label">
+              Interior
+            </div>
+            <div class="os-button-label os-button-success">
+              OK
+            </div>
+            <div class="os-button-label os-button-error">
+              Error
+            </div>
+            <div class="os-button-label os-button-waiting">
+              ···
+            </div>
+          </button>
+        </div> 
       </div> 
 
     </section>

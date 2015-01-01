@@ -133,20 +133,30 @@ html, body {
 .os-button-wrapper {
   display: table-row;
 
+  .os-button-cell {
+    display: table-cell;
+    vertical-align: middle;
+  }
+
   @media (orientation: landscape) {
     display: table-cell;
+    vertical-align: middle;
+
+    .os-button-cell {
+      display: block;
+      text-align: center;
+    }
   }
 }
 
 $buttonSize: 180px;
+$buttonTiming: 250ms;
 
 .os-button {
-  margin: 20px;
   width: $buttonSize;
   height: $buttonSize;
-  line-height: $buttonSize;
-  text-align: center;
   border-radius: 100%;
+  overflow: hidden;
 
   font-size: 40px;
   font-weight: 700;
@@ -158,4 +168,63 @@ $buttonSize: 180px;
   color: $clouds;
   outline: none;
   position: relative;
+  transition: background-color $buttonTiming*2;
+
+  .os-button-label {
+    position: absolute;
+    pointer-events: none;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    line-height: $buttonSize;
+    text-align: center;
+    transition: transform $buttonTiming;
+    transition-delay: $buttonTiming;
+
+    &.os-button-success,
+    &.os-button-waiting,
+    &.os-button-error {
+      transform: scale(0);
+      transition-delay: 0;
+    }
+  }
+
+  &[disabled] {
+    background-color: $asbestos;
+  }
+
+  &[data-state] {
+    .os-button-label {
+      transform: scale(0);
+    }
+  }
+
+  &[data-state="success"] {
+    background-color: $nephritis;
+
+    .os-button-success {
+      transform: scale(1);
+      transition-delay: $buttonTiming;
+    }
+  }
+
+  &[data-state="waiting"] {
+    background-color: $sunFlower;
+
+    .os-button-waiting {
+      transform: scale(1);
+      transition-delay: $buttonTiming;
+    }
+  }
+
+  &[data-state="error"] {
+    background-color: $alizarin;
+
+    .os-button-error {
+      transform: scale(1);
+      transition-delay: $buttonTiming;
+    }
+  }
+
 }

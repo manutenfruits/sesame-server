@@ -2,17 +2,18 @@
 (function () {
   'use strict';
 
-  var $ = document.querySelector.bind(document);
+  var $ = document.querySelector.bind(document),
+      $$ = document.querySelectorAll.bind(document);
 
-  var navdrawerContainer = $('.os-aside'),
-      header = $('.os-header'),
+  var header = $('.os-header'),
       menuBtn = $('.menu-button'),
       main = $('.os-main'),
-      buttons = $('.button-wrapper');
+      settingsForm = $('#settings'),
+      settingsHost = $('#door-host'),
+      settingsPasswd = $('#door-passwd'),
+      buttons = $$('.door-button');
 
-  var password = 'H4fr1Kah!',
-      host = '10.0.1.237',
-      nonce = 0;
+  var settings = {};
 
   var ajax = function (method, url, cb) {
     var xmlhttp;
@@ -35,65 +36,134 @@
     xmlhttp.send();
   };
 
-  var openDoor = function (door) {
-    var hash = CryptoJS.HmacSHA256(String(nonce), password);
-
-    var url = ['http://',
-        host, '/',
-        nonce, '/',
-        door, '/',
-        hash].join('');
+  var openDoor = function (door, cb, cberr) {
+    var s = settings,
+        hash = CryptoJS.HmacSHA256(String(s.nonce), s.password),
+        url = [
+          s.host, '/',
+          s.nonce, '/',
+          door, '/',
+          hash].join('');
 
     ajax('POST', url, function (status, response) {
+      var success;
       switch (status) {
-        case 200:
-          nonce++;
-          console.log('Door opened');
-          break;
-        case 401:
-          console.log('Bad password');
-          break;
-        case 400:
-          nonce = Number(response);
-          openDoor(door);
-          break;
+      case 200:
+        s.nonce++;
+        success = true;
+        console.log('Door opened');
+        break;
+      case 401:
+        success = false;
+        console.log('Bad password');
+        break;
+      case 400:
+        s.nonce = Number(response);
+        openDoor(door, cb, cberr);
+        break;
+      }
+
+      if (success !== undefined) {
+        var fn = success ? cb : cberr;
+        if (typeof fn === 'function') {
+          fn(status, response);
+        }
       }
     });
   };
 
-  var closeMenu = function () {
+  main.addEventListener('click', function () {
     header.classList.remove('nav-opened');
-  };
-
-  var toggleMenu = function () {
+  });
+  menuBtn.addEventListener('click', function () {
     header.classList.toggle('nav-opened');
+  });
+
+  main.addEventListener('click', function (e) {
+    console.log(e.target.className);
+    if (e.target.classList.contains('door-button')) {
+      var button = e.target,
+          doorNr = button.dataset.door;
+
+      if (doorNr) {
+        //Disable all other buttons
+        toggleButtons(false, doorNr);
+
+        button.dataset.state = 'waiting';
+
+        openDoor(doorNr, 
+          function () {
+            button.dataset.state = 'success';
+            resetButton(button);
+          }, function () {
+            button.dataset.state = 'error';
+            resetButton(button);
+          });
+      }
+    }
+  });
+
+  //Revert button state after 1 second
+  var resetButton = function (button) {
+    setTimeout(function () {
+      delete button.dataset.state;
+      toggleButtons(true);
+    }, 1000);
   };
 
-  main.addEventListener('click', closeMenu);
-  menuBtn.addEventListener('click', toggleMenu);
-  navdrawerContainer.addEventListener('click', function (event) {
-    if (event.target.nodeName === 'A' || event.target.nodeName === 'LI') {
-      closeMenu();
-    }
+  //Disables all buttons except the one with the doorNr specified
+  var toggleButtons = function (enable, exception) {
+    [].forEach.call(buttons, function (button) {
+      if (exception === undefined ||
+          button.dataset.door !== exception) {
+        button.disabled = !enable;
+      }
+    });
+  };
+
+  settingsForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    var host = settings.host = settingsHost.value,
+        password = settings.password = settingsPasswd.value;
+
+    localStorage.setItem('host', host);
+    localStorage.setItem('password', password);
+
+    //Close aside
+    header.classList.remove('nav-opened');
+    toggleButtons(false);
+    testConnection();
   });
 
-  buttons.addEventListener('click', function (e) {
-    if (e.target.classList.contains('door-opener')) {
-      var doorNr = e.target.dataset.door;
+  //Init
+  var loadSettings = function () {
+    var host = localStorage.getItem('host'),
+        password = localStorage.getItem('password');
 
-      openDoor(doorNr);
+    if (!!host) {
+      settingsHost.value = settings.host = host;
     }
-  });
+    if (!!password) {
+      settingsPasswd.value = settings.password = password; 
+    }
 
-  var showMessage = (function () {
-    var wrapper = $('message-panel-wrapper'),
-        message = $('message-panel');
+    settings.nonce = 0;
+  };
 
-    return function (text) {
+  var testConnection = function () {
+    var s = settings;
 
-    };
+    if (!!s.host && !!s.password) {
+      ajax('OPTIONS', settings.host, function (status) {
+        toggleButtons(status === 200);
+      });
+    } else {
+      toggleButtons(false);
+    }
+  };
 
-  })();
-
+  loadSettings();
+  testConnection();
 
 })();
