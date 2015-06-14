@@ -1,4 +1,8 @@
 {
+  "predef" : [
+    "CryptoJS",
+    "ActiveXObject"
+  ],
   "node": true,
   "browser": true,
   "esnext": true,

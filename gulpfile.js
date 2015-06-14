@@ -26,6 +26,7 @@ var del = require('del');
 var runSequence = require('run-sequence');
 var browserSync = require('browser-sync');
 var pagespeed = require('psi');
+var manifest = require('gulp-manifest');
 var reload = browserSync.reload;
 
 var AUTOPREFIXER_BROWSERS = [
@@ -137,6 +138,19 @@ gulp.task('html', function () {
     .pipe($.size({title: 'html'}));
 });
 
+//Create offline manifest
+gulp.task('manifest', function(){
+  gulp.src(['dist/*'])
+    .pipe(manifest({
+      hash: true,
+      preferOnline: true,
+      network: ['http://*'],
+      filename: 'app.manifest',
+      exclude: 'app.manifest'
+     }))
+    .pipe(gulp.dest('dist'));
+});
+
 // Clean Output Directory
 gulp.task('clean', del.bind(null, ['.tmp', 'dist/*', '!dist/.git']));
 
@@ -171,7 +185,7 @@ gulp.task('serve:dist', ['default'], function () {
 
 // Build Production Files, the Default Task
 gulp.task('default', ['clean'], function (cb) {
-  runSequence('styles', ['jshint', 'html', 'images', 'fonts', 'copy'], cb);
+  runSequence('styles', ['jshint', 'html', 'images', 'fonts', 'copy'], 'manifest', cb);
 });
 
 // Run PageSpeed Insights

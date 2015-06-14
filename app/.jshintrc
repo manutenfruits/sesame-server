@@ -1,6 +1,0 @@
-{
-  "predef": [
-    "CryptoJS"
-  ],
-  "browser": true
-}

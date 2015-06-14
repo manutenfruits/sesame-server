@@ -1,13 +1,18 @@
 {
   "version": "1.0.0",
   "name": "Sesame",
-  "launch_path": "/index.html",
+  "launch_path": "index.html",
   "description": "Garage door opener",
   "icons": {
-    "128": "/images/touch/icon-128x128.png"
+    "36": "images\/icons\/android-chrome-36x36.png",
+    "48": "images\/icons\/android-chrome-48x48.png",
+    "72": "images\/icons\/android-chrome-72x72.png",
+    "96": "images\/icons\/android-chrome-96x96.png",
+    "144": "images\/icons\/android-chrome-144x144.png",
+    "192": "images\/icons\/android-chrome-192x192.png"
   },
   "developer": {
-    "name": "",
+    "name": "Manuel Díez Frutos",
     "url": ""
   },
   "installs_allowed_from": [
@@ -19,6 +24,10 @@
     "en": {
       "name": "Sesame",
       "description": "Garage door opener"
+    },
+    "es": {
+      "name": "Sésamo",
+      "description": "Abridor de puertas de garaje"
     }
   }
 }

@@ -36,5 +36,8 @@
   "version": "0.0.0",
   "description": "Garage door opener",
   "homepage": "",
-  "main": "app/index.html"
+  "main": "app/index.html",
+  "dependencies": {
+    "gulp-manifest": "0.0.6"
+  }
 }
