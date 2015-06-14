@@ -1,21 +1,21 @@
 
-(function () {
+(function() {
   'use strict';
 
-  var $ = document.querySelector.bind(document),
-      $$ = document.querySelectorAll.bind(document);
+  var $ = document.querySelector.bind(document);
+  var $$ = document.querySelectorAll.bind(document);
 
-  var header = $('.os-header'),
-      menuBtn = $('.menu-button'),
-      main = $('.os-main'),
-      settingsForm = $('#settings'),
-      settingsHost = $('#door-host'),
-      settingsPasswd = $('#door-passwd'),
-      buttons = $$('.door-button');
+  var header = $('.os-header');
+  var menuBtn = $('.menu-button');
+  var main = $('.os-main');
+  var settingsForm = $('#settings');
+  var settingsHost = $('#door-host');
+  var settingsPasswd = $('#door-passwd');
+  var buttons = $$('.door-button');
 
   var settings = {};
 
-  var ajax = function (method, url, cb) {
+  var ajax = function(method, url, cb) {
     var xmlhttp;
 
     if (window.XMLHttpRequest) {
@@ -27,7 +27,7 @@
     }
 
     xmlhttp.onreadystatechange = function() {
-      if (xmlhttp.readyState === 4 ) {
+      if (xmlhttp.readyState === 4) {
         cb(xmlhttp.status, xmlhttp.responseText);
       }
     };
@@ -36,16 +36,16 @@
     xmlhttp.send();
   };
 
-  var openDoor = function (door, cb, cberr) {
-    var s = settings,
-        hash = CryptoJS.HmacSHA256(String(s.nonce), s.password),
-        url = [
+  var openDoor = function(door, cb, cberr) {
+    var s = settings;
+    var hash = CryptoJS.HmacSHA256(String(s.nonce), s.password);
+    var url = [
           s.host, '/',
           s.nonce, '/',
           door, '/',
           hash].join('');
 
-    ajax('POST', url, function (status, response) {
+    ajax('POST', url, function(status, response) {
       var success;
       switch (status) {
       case 200:
@@ -55,7 +55,7 @@
         break;
       case 401:
         success = false;
-        console.log('Bad password');
+        console.error('Bad password');
         break;
       case 400:
         s.nonce = Number(response);
@@ -72,18 +72,19 @@
     });
   };
 
-  main.addEventListener('click', function () {
+  main.addEventListener('click', function() {
     header.classList.remove('nav-opened');
   });
-  menuBtn.addEventListener('click', function () {
+
+  menuBtn.addEventListener('click', function() {
     header.classList.toggle('nav-opened');
   });
 
-  main.addEventListener('click', function (e) {
+  main.addEventListener('click', function(e) {
     console.log(e.target.className);
     if (e.target.classList.contains('door-button')) {
-      var button = e.target,
-          doorNr = button.dataset.door;
+      var button = e.target;
+      var doorNr = button.dataset.door;
 
       if (doorNr) {
         //Disable all other buttons
@@ -91,11 +92,11 @@
 
         button.dataset.state = 'waiting';
 
-        openDoor(doorNr, 
-          function () {
+        openDoor(doorNr,
+          function() {
             button.dataset.state = 'success';
             resetButton(button);
-          }, function () {
+          }, function() {
             button.dataset.state = 'error';
             resetButton(button);
           });
@@ -104,16 +105,16 @@
   });
 
   //Revert button state after 1 second
-  var resetButton = function (button) {
-    setTimeout(function () {
+  var resetButton = function(button) {
+    setTimeout(function() {
       delete button.dataset.state;
       toggleButtons(true);
     }, 1000);
   };
 
   //Disables all buttons except the one with the doorNr specified
-  var toggleButtons = function (enable, exception) {
-    [].forEach.call(buttons, function (button) {
+  var toggleButtons = function(enable, exception) {
+    [].forEach.call(buttons, function(button) {
       if (exception === undefined ||
           button.dataset.door !== exception) {
         button.disabled = !enable;
@@ -121,11 +122,11 @@
     });
   };
 
-  settingsForm.addEventListener('submit', function (e) {
+  settingsForm.addEventListener('submit', function(e) {
     e.preventDefault();
 
-    var host = settings.host = settingsHost.value,
-        password = settings.password = settingsPasswd.value;
+    var host = settings.host = settingsHost.value;
+    var password = settings.password = settingsPasswd.value;
 
     localStorage.setItem('host', host);
     localStorage.setItem('password', password);
@@ -137,25 +138,26 @@
   });
 
   //Init
-  var loadSettings = function () {
-    var host = localStorage.getItem('host'),
-        password = localStorage.getItem('password');
+  var loadSettings = function() {
+    var host = localStorage.getItem('host');
+    var password = localStorage.getItem('password');
 
     if (!!host) {
       settingsHost.value = settings.host = host;
     }
+
     if (!!password) {
-      settingsPasswd.value = settings.password = password; 
+      settingsPasswd.value = settings.password = password;
     }
 
     settings.nonce = 0;
   };
 
-  var testConnection = function () {
+  var testConnection = function() {
     var s = settings;
 
     if (!!s.host && !!s.password) {
-      ajax('OPTIONS', settings.host, function (status) {
+      ajax('OPTIONS', settings.host, function(status) {
         toggleButtons(status === 200);
       });
     } else {
