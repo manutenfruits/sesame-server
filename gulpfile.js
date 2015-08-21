@@ -62,7 +62,7 @@ gulp.task('styles', function() {
     'app/styles/components/components.scss'
   ])
     .pipe($.changed('styles', {extension: '.scss'}))
-    .pipe($.rubySass({
+    .pipe($.sass({
       style: 'expanded',
       precision: 10
     }))
