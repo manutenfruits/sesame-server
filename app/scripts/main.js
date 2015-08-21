@@ -28,7 +28,12 @@
 
     xmlhttp.onreadystatechange = function() {
       if (xmlhttp.readyState === 4) {
-        cb(xmlhttp.status, xmlhttp.responseText);
+        var response = xmlhttp.responseText;
+        if (response.length &&
+            xmlhttp.getResponseHeader('Content-Type') === 'application/json') {
+          response = JSON.parse(response);
+        }
+        cb(xmlhttp.status, response);
       }
     };
 
@@ -51,14 +56,14 @@
       case 200:
         s.nonce++;
         success = true;
-        console.log('Door opened');
+        console.info('Door opened');
         break;
       case 401:
         success = false;
         console.error('Bad password');
         break;
       case 400:
-        s.nonce = Number(response);
+        s.nonce = response.nonce;
         openDoor(door, cb, cberr);
         break;
       }
@@ -81,7 +86,6 @@
   });
 
   main.addEventListener('click', function(e) {
-    console.log(e.target.className);
     if (e.target.classList.contains('door-button')) {
       var button = e.target;
       var doorNr = button.dataset.door;
