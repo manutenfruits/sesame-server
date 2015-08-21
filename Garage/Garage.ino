@@ -224,7 +224,7 @@ void loop() {
           jsonLength += sprintf(response + jsonLength, ",");
         }
       }
-      jsonLength += sprintf(response + jsonLength, "}}", i, doorStatus[i]);
+      jsonLength += sprintf(response + jsonLength, "},\"nonce\":%d}", currentNonce);
 
       memcpy(ether.tcpOffset(), response, jsonLength);
       ether.httpServerReply_with_flags(jsonLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
