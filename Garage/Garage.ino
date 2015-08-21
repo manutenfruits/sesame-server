@@ -27,7 +27,7 @@ const char HTTP_420[] PROGMEM = "HTTP/1.1 420 Enhance Your Calm\r\n";
 
 const char CORS_HEADERS[] PROGMEM = "Content-Type: text/plain\r\n"
                                     "Access-Control-Allow-Origin: *\r\n"
-                                    "Access-Control-Allow-Methods: POST, OPTIONS\r\n"
+                                    "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
                                     "\r\n";
 
 //How long will the relay be opened?
@@ -35,10 +35,13 @@ const char CORS_HEADERS[] PROGMEM = "Content-Type: text/plain\r\n"
 
 // Array of door pins, add more or less if needed
 #define NR_OF_DOORS 2
-int doorPins[NR_OF_DOORS] = { 2, 3 };
+const int actionPins[NR_OF_DOORS] = { 2, 3 };
+const int openPins[NR_OF_DOORS] = { 4, 5 };
+const int closedPins[NR_OF_DOORS] = { 6, 7 };
+boolean doorStatus[NR_OF_DOORS];
 
 // Mac address for the arduino
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xF0, 0x0D };
 
 //Flag to open the door
 int asyncOpenDoor = -1;
@@ -80,8 +83,11 @@ void setup() {
   // Configure door pins as outputs
   int i;
   for (i = 0; i < NR_OF_DOORS; i++) {
-    pinMode(doorPins[i], OUTPUT);
-    digitalWrite(doorPins[i], HIGH);
+    pinMode(openPins[i], INPUT);
+    pinMode(closedPins[i], INPUT);
+
+    pinMode(actionPins[i], OUTPUT);
+    digitalWrite(actionPins[i], HIGH);
   }
 
   Serial.println(F("\n[Starting...]"));
@@ -122,9 +128,9 @@ boolean toggleDoor(int pin, boolean open) {
       Serial.print(F("Opening door "));
       Serial.print(pin);
       Serial.print(F(" on pin "));
-      Serial.println(doorPins[pin]);
+      Serial.println(actionPins[pin]);
 
-      digitalWrite(doorPins[pin], LOW);
+      digitalWrite(actionPins[pin], LOW);
       return true;
     } else {
       Serial.print(F("No door"));
@@ -132,7 +138,7 @@ boolean toggleDoor(int pin, boolean open) {
       return false;
     }
   } else {
-    digitalWrite(doorPins[pin], HIGH);
+    digitalWrite(actionPins[pin], HIGH);
     return true;
   }
 }
@@ -158,15 +164,28 @@ void loop() {
     }
   }
 
+  // read door status
+  int i;
+  for (i = 0; i < NR_OF_DOORS; i++) {
+    const int open = digitalRead(openPins[i]);
+    const int closed = digitalRead(closedPins[i]);
+
+    if (open == HIGH && closed == LOW) {
+      //door is open
+      doorStatus[i] = 1;
+    } else if (open == LOW && closed == HIGH) {
+      // door is closed
+      doorStatus[i] = 0;
+    } else {
+      // sensor is broken
+      doorStatus[i] = -1;
+    }
+  }
+
   // listen for incoming clients
   word pos = ether.packetLoop(ether.packetReceive());
   // check if valid tcp data is received
   if (pos) {
-
-    Serial.println("new client");
-
-    //Serial.print(F("Available memory: "));
-    //Serial.println(availableMemory());
 
     // an http request ends with a blank line
     char* packetData = (char *) Ethernet::buffer + pos;
@@ -176,8 +195,9 @@ void loop() {
 
     ether.httpServerReplyAck(); // send ack to the request
 
-    boolean isPost = strcmp(method, "POST") == 0,
-    isOptions = strcmp(method, "OPTIONS") == 0;
+    boolean isGet = strcmp(method, "GET") == 0,
+            isPost = strcmp(method, "POST") == 0,
+            isOptions = strcmp(method, "OPTIONS") == 0;
 
     // Ignore queries while opening
     if (asyncOpenDoor >= 0) {
@@ -191,22 +211,34 @@ void loop() {
       //Inform about CORS
       sendCode(HTTP_200, sizeof HTTP_200, true);
 
+    } else if (isGet) {
+      //Get door status
+      sendCode(HTTP_200, sizeof HTTP_200, false);
+
+      int jsonLength = 0;
+      jsonLength += sprintf(response + jsonLength, "{\"doors\":{", i, doorStatus[i]);
+      int i = 0;
+      for (i = 0; i < NR_OF_DOORS; i++) {
+        jsonLength += sprintf(response + jsonLength, "%d: %s", i, doorStatus[i] ? "true" : "false");
+        if (i < NR_OF_DOORS - 1) {
+          jsonLength += sprintf(response + jsonLength, ",");
+        }
+      }
+      jsonLength += sprintf(response + jsonLength, "}}", i, doorStatus[i]);
+
+      memcpy(ether.tcpOffset(), response, jsonLength);
+      ether.httpServerReply_with_flags(jsonLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
     } else if (isPost) {
 
       //Grab request data
       struct clientInput parsedInput = parseClientInput(url);
 
       if (parsedInput.time < currentNonce) {
-
-        const int n = snprintf(NULL, 0, "%lu", currentNonce);
-        int timeLength = snprintf(response, n+1, "%lu", currentNonce);
+        const int timeLength = sprintf(response, "%lu", currentNonce);
 
         sendCode(HTTP_400, sizeof HTTP_400, false);
         memcpy(ether.tcpOffset(), response, timeLength);
         ether.httpServerReply_with_flags(timeLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
-
-        //Serial.print(F("Available memory: "));
-        //Serial.println(availableMemory());
 
       } else {
 
