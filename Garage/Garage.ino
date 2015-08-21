@@ -25,7 +25,7 @@ const char HTTP_405[] PROGMEM = "HTTP/1.1 405 Method Not Athorized\r\n";
 const char HTTP_418[] PROGMEM = "HTTP/1.1 418 I'm a teapot\r\n";
 const char HTTP_420[] PROGMEM = "HTTP/1.1 420 Enhance Your Calm\r\n";
 
-const char CORS_HEADERS[] PROGMEM = "Content-Type: text/plain\r\n"
+const char CORS_HEADERS[] PROGMEM = "Content-Type: application/json\r\n"
                                     "Access-Control-Allow-Origin: *\r\n"
                                     "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
                                     "\r\n";
@@ -219,7 +219,7 @@ void loop() {
       jsonLength += sprintf(response + jsonLength, "{\"doors\":{", i, doorStatus[i]);
       int i = 0;
       for (i = 0; i < NR_OF_DOORS; i++) {
-        jsonLength += sprintf(response + jsonLength, "%d: %s", i, doorStatus[i] ? "true" : "false");
+        jsonLength += sprintf(response + jsonLength, "\"%d\": %s", i, doorStatus[i] ? "true" : "false");
         if (i < NR_OF_DOORS - 1) {
           jsonLength += sprintf(response + jsonLength, ",");
         }
@@ -234,7 +234,7 @@ void loop() {
       struct clientInput parsedInput = parseClientInput(url);
 
       if (parsedInput.time < currentNonce) {
-        const int timeLength = sprintf(response, "%lu", currentNonce);
+        const int timeLength = sprintf(response, "{\"nonce\":%lu}", currentNonce);
 
         sendCode(HTTP_400, sizeof HTTP_400, false);
         memcpy(ether.tcpOffset(), response, timeLength);
