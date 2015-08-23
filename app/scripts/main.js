@@ -15,7 +15,7 @@
 
   var settings = {};
 
-  var ajax = function(method, url, cb) {
+  var ajax = function(options, cb) {
     var xmlhttp;
 
     if (window.XMLHttpRequest) {
@@ -37,20 +37,30 @@
       }
     };
 
-    xmlhttp.open(method, url, true);
+    xmlhttp.open(options.method, options.url, true);
+
+    if (options.headers) {
+      for (var key in options.headers) {
+        if (options.headers.hasOwnProperty(key)) {
+          xmlhttp.setRequestHeader(key, options.headers[key]);
+        }
+      }
+    }
+
     xmlhttp.send();
   };
 
   var openDoor = function(door, cb, cberr) {
     var s = settings;
     var hash = CryptoJS.HmacSHA256(String(s.nonce), s.password);
-    var url = [
-          s.host, '/',
-          s.nonce, '/',
-          door, '/',
-          hash].join('');
 
-    ajax('POST', url, function(status, response) {
+    ajax({
+      method: 'POST',
+      url: s.host + '/doors/' + door + '/open',
+      headers: {
+        Authorization: 'Digest nc=' + s.nonce + ',nonce="' + hash + '"'
+      }
+    }, function(status, response) {
       var success;
       switch (status) {
       case 200:
@@ -161,7 +171,10 @@
     var s = settings;
 
     if (!!s.host && !!s.password) {
-      ajax('OPTIONS', settings.host, function(status) {
+      ajax({
+        method: 'OPTIONS',
+        url: settings.host
+      }, function(status) {
         toggleButtons(status === 200);
       });
     } else {
