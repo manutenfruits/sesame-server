@@ -28,10 +28,15 @@ const char HTTP_420[] PROGMEM = "HTTP/1.1 420 Enhance Your Calm\r\n";
 const char CORS_HEADERS[] PROGMEM = "Content-Type: application/json\r\n"
                                     "Access-Control-Allow-Origin: *\r\n"
                                     "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                                    "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
                                     "\r\n";
 
+const char GET_METHOD[] PROGMEM = "GET";
+const char OPTIONS_METHOD[] PROGMEM = "OPTIONS";
+const char POST_METHOD[] PROGMEM = "POST";
+
 //How long will the relay be opened?
-#define OPENING_DELAY 1000 //ms
+#define OPENING_DELAY 250 //ms
 
 // Array of door pins, add more or less if needed
 #define NR_OF_DOORS 2
@@ -41,7 +46,14 @@ const int closedPins[NR_OF_DOORS] = { 6, 7 };
 boolean doorStatus[NR_OF_DOORS];
 
 // Mac address for the arduino
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xF0, 0x0D };
+const byte MAC_ADDRESS[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xF0, 0x0D };
+
+//Buffer for responses
+char response[150];
+
+//Ethernet
+#define MAX_PACKET_SIZE 600
+byte Ethernet::buffer[MAX_PACKET_SIZE];
 
 //Flag to open the door
 int asyncOpenDoor = -1;
@@ -57,20 +69,66 @@ unsigned long currentNonce = 0;
 unsigned long timerOpenDoor = 0;
 
 struct clientInput {
-  char * time_s;
-  unsigned long time;
-  char * hash_s;
-  char hash[65];
-  char * door_s;
-  int door;
+  char * url = NULL;
+  char * method = NULL;
+  char * entity = NULL;
+  int entity_id = NULL;
+  char * action = NULL;
+  boolean auth = NULL;
+  char * nc_s = NULL;
+  unsigned long nc = NULL;
+  char nonce[65] = "";
 };
 
-//Buffer for responses
-char response[100];
+//Parse input from client's URL
+struct clientInput parseClientInput(char * packetData) {
 
-//Ethernet
-byte Ethernet::buffer[600];
+  struct clientInput holder;
 
+  char * authline = strstr(packetData, "Authorization:");
+
+  holder.method = strtok(packetData, " ");
+  holder.url = strtok(NULL, " ");
+
+  if (strcmp_P(holder.method, POST_METHOD) == 0) {
+    //If it's a POST, check further
+    holder.entity = strtok(holder.url, "/");
+
+    //If
+    if (strcmp(holder.entity, "doors") == 0) {
+      char * entity_id = strtok(NULL, "/ \n");
+      holder.entity_id = strtol(entity_id, NULL, 10);
+      holder.action = strtok(NULL, "/ \n");
+    }
+  }
+
+  //Beginning of auth line
+  holder.auth = false;
+
+  if (authline != NULL) {
+    char * digestline = strstr(authline, "Digest ");
+    char * authvalues = strtok(digestline, "\n");
+
+    const char NC_TOKEN[] PROGMEM = "nc=";
+    const char NONCE_TOKEN[] PROGMEM = "nonce=\"";
+
+    //Nonce count
+    char * ncptr = strstr(authvalues, NC_TOKEN) + strlen(NC_TOKEN);
+    //Actual nonce
+    char * nonceptr = strstr(authvalues, NONCE_TOKEN) + strlen(NONCE_TOKEN);
+
+    //Trim
+    strtok(ncptr, " ,\n");
+    strtok(nonceptr, "\"");
+
+    holder.nc_s = ncptr;
+    holder.nc = strtol(ncptr, NULL, 10);
+    strncpy(holder.nonce, nonceptr, 65);
+    holder.auth = true;
+  }
+
+  return holder;
+}
 
 void setup() {
 
@@ -93,7 +151,7 @@ void setup() {
   Serial.println(F("\n[Starting...]"));
 
   //Initialize Ethernet module
-  if (ether.begin(sizeof Ethernet::buffer, mac) == 0)
+  if (ether.begin(sizeof Ethernet::buffer, MAC_ADDRESS) == 0)
   Serial.println(F("Failed to access Ethernet controller"));
 
   //Try DHCP request
@@ -103,22 +161,6 @@ void setup() {
   //Print IP information
   ether.printIp(F("IP address: "), ether.myip);
   ether.printIp(F("Netmask: "), ether.netmask);
-}
-
-//Parse input from client's URL
-struct clientInput parseClientInput(char * url) {
-
-  struct clientInput holder;
-
-  holder.time_s = strtok(url, "/ \n");
-  holder.door_s = strtok(NULL, "/ \n");
-  holder.hash_s = strtok(NULL, "/ \n");
-
-  holder.time = strtoul(holder.time_s, NULL, 10);
-  holder.door = strtol(holder.door_s, NULL, 10);
-  strncpy(holder.hash, holder.hash_s, 65);
-
-  return holder;
 }
 
 boolean toggleDoor(int pin, boolean open) {
@@ -189,21 +231,23 @@ void loop() {
 
     // an http request ends with a blank line
     char* packetData = (char *) Ethernet::buffer + pos;
+
     unsigned int packetLength = strlen(packetData);
-    char * method = strtok(packetData, " ");
-    char * url = strtok(NULL, " ");
+
+    //Grab request data
+    struct clientInput request = parseClientInput(packetData);
 
     ether.httpServerReplyAck(); // send ack to the request
 
-    boolean isGet = strcmp(method, "GET") == 0,
-            isPost = strcmp(method, "POST") == 0,
-            isOptions = strcmp(method, "OPTIONS") == 0;
+    boolean isGet = strcmp_P(request.method, GET_METHOD) == 0,
+            isPost = strcmp_P(request.method, POST_METHOD) == 0,
+            isOptions = strcmp_P(request.method, OPTIONS_METHOD) == 0;
 
     // Ignore queries while opening
     if (asyncOpenDoor >= 0) {
       sendCode(HTTP_420, sizeof HTTP_420, true);
-    } else if (packetLength >= 600) {
-      // flush buffer if goes above 600
+
+    } else if (packetLength >= MAX_PACKET_SIZE) {
       //I'm a teapot
       sendCode(HTTP_418, sizeof HTTP_418, true);
 
@@ -228,55 +272,58 @@ void loop() {
 
       memcpy(ether.tcpOffset(), response, jsonLength);
       ether.httpServerReply_with_flags(jsonLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
+
     } else if (isPost) {
 
-      //Grab request data
-      struct clientInput parsedInput = parseClientInput(url);
-
-      if (parsedInput.time < currentNonce) {
-        const int timeLength = sprintf(response, "{\"nonce\":%lu}", currentNonce);
-
-        sendCode(HTTP_400, sizeof HTTP_400, false);
-        memcpy(ether.tcpOffset(), response, timeLength);
-        ether.httpServerReply_with_flags(timeLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
-
+      if (!request.auth) {
+        sendCode(HTTP_401, sizeof HTTP_401, true);
       } else {
 
-        //update time counter
-        currentNonce = parsedInput.time + 1;
+        if (request.nc < currentNonce) {
+          const int timeLength = sprintf(response, "{\"nonce\":%lu}", currentNonce);
 
-        // check hash
-        uint8_t *hash;
-        Sha256.initHmac((uint8_t *) password, passwordLen);
-        Sha256.print(parsedInput.time_s);
-        hash = Sha256.resultHmac();
+          sendCode(HTTP_400, sizeof HTTP_400, false);
+          memcpy(ether.tcpOffset(), response, timeLength);
+          ether.httpServerReply_with_flags(timeLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
 
-        char hash_c[65];
-
-        // convert from uint8_t to HEX str
-        String tmpHash;
-        String hash_s = "";
-
-        for (int i=0; i<32; i++) {
-          tmpHash = String(hash[i], HEX);
-          while (tmpHash.length() < 2) {
-            tmpHash = "0" + tmpHash;
-          }
-          hash_s += tmpHash;
-        }
-        hash_s.toCharArray(hash_c, 65);
-
-        if (strcmp(parsedInput.hash, hash_c) == 0) {
-
-          if (parsedInput.door < 0 || parsedInput.door > NR_OF_DOORS) {
-            sendCode(HTTP_404, sizeof HTTP_404, true);
-          } else {
-            asyncOpenDoor = parsedInput.door;
-            sendCode(HTTP_200, sizeof HTTP_200, true);
-          }
         } else {
-          // don't open door
-          sendCode(HTTP_401, sizeof HTTP_401, true);
+
+          //update time counter
+          currentNonce = request.nc + 1;
+
+          // check hash
+          uint8_t *hash;
+          Sha256.initHmac((uint8_t *) password, passwordLen);
+          Sha256.print(request.nc_s);
+          hash = Sha256.resultHmac();
+
+          char hash_c[65];
+
+          // convert from uint8_t to HEX str
+          String tmpHash;
+          String hash_s = "";
+
+          for (int i=0; i<32; i++) {
+            tmpHash = String(hash[i], HEX);
+            while (tmpHash.length() < 2) {
+              tmpHash = "0" + tmpHash;
+            }
+            hash_s += tmpHash;
+          }
+          hash_s.toCharArray(hash_c, 65);
+
+          if (strcmp(request.nonce, hash_c) == 0) {
+
+            if (request.entity_id < 0 || request.entity_id > NR_OF_DOORS) {
+              sendCode(HTTP_404, sizeof HTTP_404, true);
+            } else {
+              asyncOpenDoor = request.entity_id;
+              sendCode(HTTP_200, sizeof HTTP_200, true);
+            }
+          } else {
+            // don't open door
+            sendCode(HTTP_401, sizeof HTTP_401, true);
+          }
         }
       }
     } else {
