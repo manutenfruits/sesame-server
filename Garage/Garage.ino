@@ -28,7 +28,6 @@ const char HTTP_420[] PROGMEM = "HTTP/1.1 420 Enhance Your Calm\r\n";
 const char CORS_HEADERS[] PROGMEM = "Content-Type: application/json\r\n"
                                     "Access-Control-Allow-Origin: *\r\n"
                                     "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-                                    "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
                                     "\r\n";
 
 const char GET_METHOD[] PROGMEM = "GET";
@@ -85,46 +84,64 @@ struct clientInput parseClientInput(char * packetData) {
 
   struct clientInput holder;
 
-  char * authline = strstr(packetData, "Authorization:");
+  char * packetPtr = packetData;
 
-  holder.method = strtok(packetData, " ");
-  holder.url = strtok(NULL, " ");
+  holder.method = strsep(&packetPtr, " ");
+  char * request_url = strsep(&packetPtr, " ");
+  char * paramsline = strstr(request_url, "?");
 
-  if (strcmp_P(holder.method, POST_METHOD) == 0) {
-    //If it's a POST, check further
-    holder.entity = strtok(holder.url, "/");
+  char * requestPtr = request_url;
 
-    //If
-    if (strcmp(holder.entity, "doors") == 0) {
-      char * entity_id = strtok(NULL, "/ \n");
-      holder.entity_id = strtol(entity_id, NULL, 10);
-      holder.action = strtok(NULL, "/ \n");
+  holder.url = strsep(&requestPtr, "?# \n");
+
+  //Deconstruct URL
+  int i = 0;
+  char * urlPtr = holder.url + sizeof(char);
+  char * urlItem = strsep(&urlPtr, "/? \n");
+  while (urlItem != NULL) {
+    switch (i) {
+      case 0: holder.entity = urlItem; break;
+      case 1: holder.entity_id = strtol(urlItem, NULL, 10); break;
+      case 2: holder.action = urlItem; break;
     }
+    i++;
+
+    urlItem = strsep(&urlPtr, "/");
   }
 
-  //Beginning of auth line
-  holder.auth = false;
+  //Deconstruct query params
 
-  if (authline != NULL) {
-    char * digestline = strstr(authline, "Digest ");
-    char * authvalues = strtok(digestline, "\n");
+  if (paramsline != NULL) {
+    paramsline += sizeof(char);
 
-    const char NC_TOKEN[] PROGMEM = "nc=";
-    const char NONCE_TOKEN[] PROGMEM = "nonce=\"";
+    char * params = strtok(paramsline, "# \n");
+    char * paramsp = params;
 
-    //Nonce count
-    char * ncptr = strstr(authvalues, NC_TOKEN) + strlen(NC_TOKEN);
-    //Actual nonce
-    char * nonceptr = strstr(authvalues, NONCE_TOKEN) + strlen(NONCE_TOKEN);
+    char * param = strsep(&paramsp, "&");
 
-    //Trim
-    strtok(ncptr, " ,\n");
-    strtok(nonceptr, "\"");
+    while (param != NULL) {
+      char * key = NULL;
+      char * value = NULL;
 
-    holder.nc_s = ncptr;
-    holder.nc = strtol(ncptr, NULL, 10);
-    strncpy(holder.nonce, nonceptr, 65);
-    holder.auth = true;
+      char * paramP = param;
+
+      key = strsep(&paramP, "=");
+      if (paramP != NULL) {
+        value = strsep(&paramP, "&");
+      }
+
+      if (key != NULL && value != NULL) {
+        if (strcmp(key, "nc") == 0) {
+          holder.nc_s = value;
+          holder.nc = strtol(value, NULL, 10);
+        } else if (strcmp(key, "nonce") == 0) {
+          strncpy(holder.nonce, value, 65);
+        }
+      }
+      param = strsep(&paramsp, "&");
+    }
+
+    holder.auth = holder.nc_s != NULL && strcmp(holder.nonce, "") != 0;
   }
 
   return holder;
