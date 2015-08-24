@@ -56,10 +56,7 @@
 
     ajax({
       method: 'POST',
-      url: s.host + '/doors/' + door + '/open',
-      headers: {
-        Authorization: 'Digest nc=' + s.nonce + ',nonce="' + hash + '"'
-      }
+      url: s.host + '/doors/' + door + '/open?' + 'nc=' + s.nonce + '&nonce=' + hash
     }, function(status, response) {
       var success;
       switch (status) {
