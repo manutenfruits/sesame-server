@@ -273,15 +273,22 @@ void loop() {
       jsonLength += sprintf(response + jsonLength, "{\"doors\":[", i, doorStatus[i]);
 
       int i = 0;
-      char doorName[16];
+      char dName[16];
+      char* dStatus;
 
       for (i = 0; i < NR_OF_DOORS; i++) {
         //Retrieve the name of the door from ROM
-        strcpy_P(doorName, (char*)pgm_read_word(&(doorNames[i])));
+        strcpy_P(dName, (char*)pgm_read_word(&(doorNames[i])));
+
+        switch(doorStatus[i]) {
+          case 0: dStatus = "CLOSED"; break;
+          case 1: dStatus = "OPEN"; break;
+          default: dStatus = "UNKOWN"; break;
+        }
 
         jsonLength += sprintf(response + jsonLength,
-            "{\"id\":%d,\"status\":%s,\"name\":\"%s\"}",
-            i, doorStatus[i] ? "true" : "false", doorName);
+            "{\"id\":%d,\"status\":\"%s\",\"name\":\"%s\"}",
+            i, dStatus, dName);
 
         if (i < NR_OF_DOORS - 1) {
           jsonLength += sprintf(response + jsonLength, ",");
