@@ -34,14 +34,7 @@ const char GET_METHOD[] PROGMEM = "GET";
 const char OPTIONS_METHOD[] PROGMEM = "OPTIONS";
 const char POST_METHOD[] PROGMEM = "POST";
 
-//How long will the relay be opened?
-#define OPENING_DELAY 250 //ms
-
 // Array of door pins, add more or less if needed
-#define NR_OF_DOORS 2
-const int actionPins[NR_OF_DOORS] = { 2, 3 };
-const int openPins[NR_OF_DOORS] = { 4, 5 };
-const int closedPins[NR_OF_DOORS] = { 6, 7 };
 boolean doorStatus[NR_OF_DOORS];
 
 // Mac address for the arduino
@@ -277,15 +270,24 @@ void loop() {
       sendCode(HTTP_200, sizeof HTTP_200, false);
 
       int jsonLength = 0;
-      jsonLength += sprintf(response + jsonLength, "{\"doors\":{", i, doorStatus[i]);
+      jsonLength += sprintf(response + jsonLength, "{\"doors\":[", i, doorStatus[i]);
+
       int i = 0;
+      char doorName[16];
+
       for (i = 0; i < NR_OF_DOORS; i++) {
-        jsonLength += sprintf(response + jsonLength, "\"%d\": %s", i, doorStatus[i] ? "true" : "false");
+        //Retrieve the name of the door from ROM
+        strcpy_P(doorName, (char*)pgm_read_word(&(doorNames[i])));
+
+        jsonLength += sprintf(response + jsonLength,
+            "{\"id\":%d,\"status\":%s,\"name\":\"%s\"}",
+            i, doorStatus[i] ? "true" : "false", doorName);
+
         if (i < NR_OF_DOORS - 1) {
           jsonLength += sprintf(response + jsonLength, ",");
         }
       }
-      jsonLength += sprintf(response + jsonLength, "},\"nonce\":%d}", currentNonce);
+      jsonLength += sprintf(response + jsonLength, "],\"nonce\":%d}", currentNonce);
 
       memcpy(ether.tcpOffset(), response, jsonLength);
       ether.httpServerReply_with_flags(jsonLength, TCP_FLAGS_ACK_V|TCP_FLAGS_FIN_V);
